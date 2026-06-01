@@ -83,9 +83,13 @@
                 document.getElementById('ui-keputusan').className = "text-xl font-black bg-red-700 text-white px-6 py-3 rounded";
             });
 
+        let sensorTimeout;
+
         function bukaPipaDataRealtime() {
             const sensorRef = ref(db, 'sensor');
             onValue(sensorRef, (snapshot) => {
+                clearTimeout(sensorTimeout);
+
                 const data = snapshot.val();
                 if(data) {
                     let s = parseFloat(data.suhu);
@@ -98,6 +102,12 @@
 
                     hitungSAW(s, a, h);
                 }
+
+                sensorTimeout = setTimeout(() => {
+                    document.getElementById('ui-keputusan').innerText = "KONEKSI SENSOR TERPUTUS (OFFLINE)";
+                    document.getElementById('ui-keputusan').className = "text-xl font-black bg-gray-600 text-white px-6 py-3 rounded";
+                    document.getElementById('ui-skor').innerText = "---";
+                }, 30000);
             });
 
             initToggleOverride();
