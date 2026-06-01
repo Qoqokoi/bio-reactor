@@ -114,45 +114,36 @@
         }
 
         function hitungSAW(suhu, amonia, hari) {
-            const MAX_AMONIA = 50; 
-            const OPTIMAL_SUHU_MAX = 70;   
-            const MAX_HARI = 14;   
+            const MAX_AMONIA = 50.0;
+            const OPTIMAL_SUHU_MAX = 70.0;
+            const MAX_HARI = 14.0;
 
-            let normAmonia = amonia <= MAX_AMONIA ? (1 - (amonia / MAX_AMONIA)) : 0; 
-            
-            let normSuhu = 0;
-            if (suhu >= 45 && suhu <= OPTIMAL_SUHU_MAX) {
-                normSuhu = 1.0; 
-            } else if (suhu > OPTIMAL_SUHU_MAX) {
-                normSuhu = 0; 
-            } else {
-                normSuhu = suhu / 45; 
+            const uiKeputusan = document.getElementById('ui-keputusan');
+            const uiSkor = document.getElementById('ui-skor');
+            if (suhu > OPTIMAL_SUHU_MAX || amonia > MAX_AMONIA) {
+                uiKeputusan.innerText = "PROSES GAGAL / OVERHEAT";
+                uiKeputusan.className = "text-xl font-black bg-red-600 text-white px-6 py-3 rounded animate-pulse";
+                uiSkor.innerText = "---";
+                return;
             }
 
-            let normHari = hari >= MAX_HARI ? 1.0 : (hari / MAX_HARI);
+            let r_suhu = suhu / OPTIMAL_SUHU_MAX; 
+            let r_amonia = (MAX_AMONIA - amonia) / MAX_AMONIA;
+              if (r_amonia < 0) r_amonia = 0; 
+            let r_hari = hari / MAX_HARI;
+              if (r_hari > 1) r_hari = 1.0;
+            let v = (r_suhu * 0.3) + (r_amonia * 0.4) + (r_hari * 0.3);
+              uiSkor.innerText = v.toFixed(3);
 
-            let skorAkhir = (normAmonia * 0.4) + (normSuhu * 0.3) + (normHari * 0.3);
-            skorAkhir = Math.min(Math.max(skorAkhir, 0), 1.0);
-            
-            document.getElementById('ui-skor').innerText = skorAkhir.toFixed(3);
-
-            let elKeputusan = document.getElementById('ui-keputusan');
-            
-            if (suhu > OPTIMAL_SUHU_MAX || amonia > MAX_AMONIA) {
-                elKeputusan.innerText = "PROSES GAGAL (OVERHEAT/KONTAMINASI)";
-                elKeputusan.className = "text-xl font-black bg-red-600 text-white px-6 py-3 rounded";
-            } 
-            else if (skorAkhir >= 0.75) {
-                elKeputusan.innerText = "GRADE A (SIAP PANEN)";
-                elKeputusan.className = "text-xl font-black bg-green-600 text-white px-6 py-3 rounded shadow-[0_0_15px_rgba(22,163,74,0.6)]";
-            } 
-            else if (skorAkhir >= 0.5) {
-                elKeputusan.innerText = "FASE PEMATANGAN";
-                elKeputusan.className = "text-xl font-black bg-blue-600 text-white px-6 py-3 rounded";
-            } 
-            else {
-                elKeputusan.innerText = "PROSES GAGAL (RASIO BURUK)";
-                elKeputusan.className = "text-xl font-black bg-red-600 text-white px-6 py-3 rounded";
+            if (v >= 0.75) {
+                uiKeputusan.innerText = "GRADE A (SIAP PANEN)";
+                uiKeputusan.className = "text-xl font-black bg-green-500 text-white px-6 py-3 rounded";
+            } else if (v >= 0.50) {
+                uiKeputusan.innerText = "FASE PEMATANGAN";
+                uiKeputusan.className = "text-xl font-black bg-blue-500 text-white px-6 py-3 rounded";
+            } else {
+                uiKeputusan.innerText = "PERLU INTERVENSI (AERASI)";
+                uiKeputusan.className = "text-xl font-black bg-yellow-500 text-gray-900 px-6 py-3 rounded";
             }
         }
 
