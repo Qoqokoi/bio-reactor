@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOC Bioreaktor - Terintegrasi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans p-6">
+
+    <div class="max-w-4xl mx-auto">
+        <h1 id="secret-trigger" class="text-3xl font-bold border-b border-gray-700 pb-4 mb-6 text-green-400 cursor-default select-none">
+            NOC Bioreaktor Terintegrasi
+        </h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 text-center">
+                <h2 class="text-gray-400 text-sm uppercase tracking-wider mb-2">Suhu Inti</h2>
+                <p id="ui-suhu" class="text-5xl font-bold text-yellow-400">-- °C</p>
+            </div>
+            
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 text-center">
+                <h2 class="text-gray-400 text-sm uppercase tracking-wider mb-2">Kadar Amonia</h2>
+                <p id="ui-amonia" class="text-5xl font-bold text-red-400">-- PPM</p>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 text-center">
+                <h2 class="text-gray-400 text-sm uppercase tracking-wider mb-2">Durasi</h2>
+                <p id="ui-hari" class="text-5xl font-bold text-blue-400">-- Hari</p>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg border border-green-700 mb-8">
+            <h2 class="text-xl font-bold mb-4 text-green-400">Decision Support System (SAW)</h2>
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="text-gray-400">Skor Preferensi (V): <span id="ui-skor" class="text-white font-mono text-lg">0.00</span></p>
+                </div>
+                <div id="ui-keputusan" class="text-xl font-black bg-gray-700 px-6 py-3 rounded text-gray-400">
+                    MENUNGGU AUTENTIKASI...
+                </div>
+            </div>
+        </div>
+
+        <div id="override-panel" class="hidden bg-red-900/30 p-6 rounded-lg border border-red-700 flex justify-between items-center">
+            <div>
+                <h2 class="text-xl font-bold text-red-400">Manual Override</h2>
+                <p class="text-gray-400 text-sm">kendali paksa dari jauh. gunakan saat darurat atau sebelum maintenance.</p>
+            </div>
+            <button id="btn-override" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded transition-all">
+                EKSEKUSI AERASI
+            </button>
+        </div>
+    </div>
+
+  <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
+        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5Ad_UGPVF9AjVZNI4HtajNJmd1F1Vxhg",
+            authDomain: "bio-reactor-6d074.firebaseapp.com",
+            databaseURL: "https://bio-reactor-6d074-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "bio-reactor-6d074"
+        };
+
+        const authEmail = "admin@versenate.com";
+        const authPassword = "adm098";
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        signInWithEmailAndPassword(auth, authEmail, authPassword)
+            .then(() => {
+                console.log("Firebase Terotentikasi. Membuka enkripsi data.");
+                document.getElementById('ui-keputusan').innerText = "MENUNGGU DATA FIELD...";
+                bukaPipaDataRealtime();
+            })
+            .catch((error) => {
+                console.error("Akses Ditolak Firewall:", error.message);
+                document.getElementById('ui-keputusan').innerText = "AKSES DITOLAK (401)";
+                document.getElementById('ui-keputusan').className = "text-xl font-black bg-red-700 text-white px-6 py-3 rounded";
+            });
+
+        function bukaPipaDataRealtime() {
+            const sensorRef = ref(db, 'sensor');
+            onValue(sensorRef, (snapshot) => {
+                const data = snapshot.val();
+                if(data) {
+                    let s = parseFloat(data.suhu);
+                    let a = parseFloat(data.amonia);
+                    let h = parseInt(data.hari_ke);
+
+                    document.getElementById('ui-suhu').innerText = s + " °C";
+                    document.getElementById('ui-amonia').innerText = a + " PPM";
+                    document.getElementById('ui-hari').innerText = h + " Hari";
+
+                    hitungSAW(s, a, h);
+                }
+            });
+
+            initToggleOverride();
+        }
+
+        function hitungSAW(suhu, amonia, hari) {
+            const MAX_AMONIA = 50; 
+            const OPTIMAL_SUHU_MAX = 70;   
+            const MAX_HARI = 14;   
+
+            let normAmonia = amonia <= MAX_AMONIA ? (1 - (amonia / MAX_AMONIA)) : 0; 
+            
+            let normSuhu = 0;
+            if (suhu >= 45 && suhu <= OPTIMAL_SUHU_MAX) {
+                normSuhu = 1.0; 
+            } else if (suhu > OPTIMAL_SUHU_MAX) {
+                normSuhu = 0; 
+            } else {
+                normSuhu = suhu / 45; 
+            }
+
+            let normHari = hari >= MAX_HARI ? 1.0 : (hari / MAX_HARI);
+
+            let skorAkhir = (normAmonia * 0.4) + (normSuhu * 0.3) + (normHari * 0.3);
+            skorAkhir = Math.min(Math.max(skorAkhir, 0), 1.0);
+            
+            document.getElementById('ui-skor').innerText = skorAkhir.toFixed(3);
+
+            let elKeputusan = document.getElementById('ui-keputusan');
+            
+            if (suhu > OPTIMAL_SUHU_MAX || amonia > MAX_AMONIA) {
+                elKeputusan.innerText = "PROSES GAGAL (OVERHEAT/KONTAMINASI)";
+                elKeputusan.className = "text-xl font-black bg-red-600 text-white px-6 py-3 rounded";
+            } 
+            else if (skorAkhir >= 0.75) {
+                elKeputusan.innerText = "GRADE A (SIAP PANEN)";
+                elKeputusan.className = "text-xl font-black bg-green-600 text-white px-6 py-3 rounded shadow-[0_0_15px_rgba(22,163,74,0.6)]";
+            } 
+            else if (skorAkhir >= 0.5) {
+                elKeputusan.innerText = "FASE PEMATANGAN";
+                elKeputusan.className = "text-xl font-black bg-blue-600 text-white px-6 py-3 rounded";
+            } 
+            else {
+                elKeputusan.innerText = "PROSES GAGAL (RASIO BURUK)";
+                elKeputusan.className = "text-xl font-black bg-red-600 text-white px-6 py-3 rounded";
+            }
+        }
+
+        function initToggleOverride() {
+            let isOverrideActive = false;
+            const btnOverride = document.getElementById('btn-override');
+
+            btnOverride.addEventListener('click', () => {
+                isOverrideActive = !isOverrideActive;
+
+                set(ref(db, 'kontrol/aktuator'), {
+                    kipas: isOverrideActive,
+                    timestamp: Date.now()
+                });
+
+                if (isOverrideActive) {
+                    btnOverride.innerText = "MATIKAN AERASI";
+                    btnOverride.className = "bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded transition-all";
+                } else {
+                    btnOverride.innerText = "EKSEKUSI AERASI";
+                    btnOverride.className = "bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded transition-all";
+                }
+            });
+        }
+
+        let tapCount = 0;
+        let tapTimer;
+        document.getElementById('secret-trigger').addEventListener('click', () => {
+            tapCount++;
+            clearTimeout(tapTimer);
+            tapTimer = setTimeout(() => { tapCount = 0; }, 1500);
+
+            if (tapCount === 3) {
+                const panel = document.getElementById('override-panel');
+                panel.classList.toggle('hidden');
+                console.log("Sistem Intervensi Dimutasi.");
+                tapCount = 0;
+            }
+        });
+    </script>
+</body>
+</html>
